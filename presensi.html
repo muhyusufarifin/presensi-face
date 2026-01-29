@@ -1,0 +1,1019 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Presensi Wajah - MAN 2 Surakarta</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #1f2937; }
+        ::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #6b7280; }
+        
+        /* Toast Animation */
+        #toast-container { position: fixed; top: 1.5rem; right: 1.5rem; z-index: 2000; display: flex; flex-direction: column; gap: 0.75rem; }
+        .toast { display: flex; align-items: center; padding: 1rem; border-radius: 0.5rem; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); opacity: 0; transform: translateX(100%); transition: all 0.5s cubic-bezier(0.68, -0.55, 0.27, 1.55); }
+        .toast.show { opacity: 1; transform: translateX(0); }
+        .toast-success { background-color: #1f2937; color: #d1d5db; border-left: 4px solid #10b981; }
+        .toast-error { background-color: #1f2937; color: #d1d5db; border-left: 4px solid #ef4444; }
+        .toast-warning { background-color: #1f2937; color: #d1d5db; border-left: 4px solid #f59e0b; }
+
+        /* Scanner Line - Diubah jadi Frame Wajah */
+        .face-frame {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            width: 250px; height: 300px;
+            border: 2px solid rgba(59, 130, 246, 0.5);
+            border-radius: 150px; /* Bentuk Oval */
+            box-shadow: 0 0 50px rgba(59, 130, 246, 0.2) inset;
+            pointer-events: none;
+        }
+
+        /* Input Date Dark Mode */
+        input[type="date"], input[type="time"] { color-scheme: dark; }
+
+        /* Animation for Credit Scene */
+        @keyframes slide-up {
+            0% { transform: translateY(50px); opacity: 0; }
+            100% { transform: translateY(0); opacity: 1; }
+        }
+        .animate-slide-up {
+            animation: slide-up 1s ease-out forwards;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-100 font-inter">
+
+    <audio id="snd-success" src="song/Sukses.mp3"></audio>
+    <audio id="snd-error" src="song/Erorr.mp3"></audio>
+    <audio id="snd-warning" src="song/Warning.mp3"></audio>
+
+    <div id="toast-container"></div>
+
+    <div id="mobile-sidebar-overlay" class="fixed inset-0 bg-black bg-opacity-50 z-20 hidden" onclick="toggleSidebar()"></div>
+
+    <div class="flex h-screen bg-gray-900 overflow-hidden">
+        
+        <nav id="sidebar" class="fixed inset-y-0 left-0 transform -translate-x-full md:relative md:translate-x-0 w-64 bg-gray-800 shadow-lg flex flex-col transition-transform duration-300 ease-in-out z-30 h-full overflow-y-auto border-r border-gray-700">
+            <div class="p-6 flex flex-col items-center border-b border-gray-700">
+                <button onclick="toggleSidebar()" class="absolute top-4 right-4 text-gray-400 hover:text-white md:hidden">
+                    <i class="fas fa-times text-xl"></i>
+                </button>
+                <img src="https://man2ska.sch.id/wp-content/uploads/elementor/thumbs/LOGO-MAN2-p1qslg9q8f4i4ny1inanu0a0eejiavdlpseg9cscu8.png" alt="Logo" class="h-16 w-auto mb-3">
+                <p class="text-sm font-bold text-white text-center uppercase tracking-wider">Sistem Presensi</p>
+                <p class="text-xs text-gray-400">MAN 2 SURAKARTA</p>
+
+                <div class="mt-6 w-full bg-gray-700/50 rounded-lg p-3 border border-gray-600 text-center">
+                    <div class="text-xl font-bold text-blue-400 font-mono tracking-wider" id="clock-time">00:00:00</div>
+                    <div class="text-xs text-gray-400 mt-1" id="clock-date">Senin, 1 Jan</div>
+                </div>
+            </div>
+
+            <ul class="flex flex-col p-4 space-y-1 flex-1">
+                <li class="px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 mt-2">UTAMA</li>
+                <li><a href="#" onclick="nav('dashboard')" id="menu-dashboard" class="nav-link flex items-center p-3 rounded-lg text-gray-300 hover:bg-gray-700 hover:text-white transition-colors"><i class="fas fa-chart-pie fa-fw w-6"></i> <span class="ml-3">Dashboard</span></a></li>
+                <li><a href="#" onclick="nav('scan')" id="menu-scan" class="nav-link flex items-center p-3 rounded-lg text-gray-300 hover:bg-gray-700 hover:text-white transition-colors"><i class="fas fa-user-check fa-fw w-6"></i> <span class="ml-3">Absen Wajah</span></a></li>
+                
+                <li class="px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 mt-6 staff-only">DATA & REKAP</li>
+                <li class="staff-only"><a href="#" onclick="nav('students')" id="menu-students" class="nav-link flex items-center p-3 rounded-lg text-gray-300 hover:bg-gray-700 hover:text-white transition-colors"><i class="fas fa-user-graduate fa-fw w-6"></i> <span class="ml-3">Data Siswa</span></a></li>
+                <li class="staff-only"><a href="#" onclick="nav('attendance')" id="menu-attendance" class="nav-link flex items-center p-3 rounded-lg text-gray-300 hover:bg-gray-700 hover:text-white transition-colors"><i class="fas fa-clipboard-list fa-fw w-6"></i> <span class="ml-3">Daftar Hadir</span></a></li>
+
+                <li class="px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2 mt-6 admin-only">PENGATURAN</li>
+                <li class="admin-only"><a href="#" onclick="nav('schedules')" id="menu-schedules" class="nav-link flex items-center p-3 rounded-lg text-gray-300 hover:bg-gray-700 hover:text-white transition-colors"><i class="fas fa-calendar-alt fa-fw w-6"></i> <span class="ml-3">Atur Jadwal</span></a></li>
+                <li class="admin-only"><a href="#" onclick="nav('users')" id="menu-users" class="nav-link flex items-center p-3 rounded-lg text-gray-300 hover:bg-gray-700 hover:text-white transition-colors"><i class="fas fa-users-cog fa-fw w-6"></i> <span class="ml-3">Kelola User</span></a></li>
+                <li class="admin-only"><a href="#" onclick="nav('wa')" id="menu-wa" class="nav-link flex items-center p-3 rounded-lg text-gray-300 hover:bg-gray-700 hover:text-white transition-colors"><i class="fab fa-whatsapp fa-fw w-6"></i> <span class="ml-3">API WhatsApp</span></a></li>
+            </ul>
+
+            <div class="p-4 border-t border-gray-700">
+                <button onclick="logout()" class="w-full flex items-center justify-center p-3 rounded-lg text-red-400 hover:bg-red-900/30 hover:text-red-300 transition-colors font-semibold">
+                    <i class="fas fa-sign-out-alt fa-fw w-6"></i> <span class="ml-2">Logout</span>
+                </button>
+            </div>
+        </nav>
+
+        <main class="flex-1 flex flex-col overflow-hidden w-full bg-gray-900">
+            <div class="md:hidden bg-gray-800 p-4 flex items-center justify-between shadow-md shrink-0 border-b border-gray-700">
+                <div class="flex items-center">
+                    <img src="https://man2ska.sch.id/wp-content/uploads/elementor/thumbs/LOGO-MAN2-p1qslg9q8f4i4ny1inanu0a0eejiavdlpseg9cscu8.png" class="h-8 w-auto mr-3">
+                    <span class="font-bold text-white">MAN 2 SKA</span>
+                </div>
+                <button onclick="toggleSidebar()" class="text-gray-300 hover:text-white focus:outline-none">
+                    <i class="fas fa-bars text-2xl"></i>
+                </button>
+            </div>
+
+            <div class="flex-1 overflow-y-auto p-4 md:p-8 w-full scroll-smooth">
+                
+                <div class="flex flex-row justify-between items-center mb-6 border-b border-gray-700 pb-4">
+                    <h2 id="page-title" class="text-2xl md:text-3xl font-bold text-white">Dashboard</h2>
+                    <p class="text-xl text-gray-300 font-medium">Halo, <span id="header-name" class="text-blue-400 font-bold">User</span></p>
+                </div>
+
+                <div id="view-dashboard" class="view-section space-y-6">
+                    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+                        <div class="bg-gray-800 p-6 rounded-lg shadow-lg flex items-center border border-gray-700 relative overflow-hidden">
+                            <div class="relative z-10">
+                                <p class="text-sm text-gray-400 font-medium uppercase">Total Siswa</p>
+                                <p id="dash-total" class="text-3xl font-bold text-white mt-1">...</p>
+                            </div>
+                            <i class="fas fa-users text-5xl text-gray-700 absolute right-4 bottom-4 opacity-50"></i>
+                        </div>
+                        <div class="bg-gray-800 p-6 rounded-lg shadow-lg flex items-center border border-gray-700 relative overflow-hidden">
+                            <div class="relative z-10">
+                                <p class="text-sm text-gray-400 font-medium uppercase">Hadir Hari Ini</p>
+                                <p id="dash-hadir" class="text-3xl font-bold text-green-400 mt-1">...</p>
+                            </div>
+                            <i class="fas fa-check-circle text-5xl text-green-900 absolute right-4 bottom-4 opacity-50"></i>
+                        </div>
+                        <div class="bg-gray-800 p-6 rounded-lg shadow-lg flex items-center border border-gray-700 relative overflow-hidden">
+                            <div class="relative z-10">
+                                <p class="text-sm text-gray-400 font-medium uppercase">Terlambat</p>
+                                <p id="dash-telat" class="text-3xl font-bold text-yellow-400 mt-1">...</p>
+                            </div>
+                            <i class="fas fa-clock text-5xl text-yellow-900 absolute right-4 bottom-4 opacity-50"></i>
+                        </div>
+                        <div class="bg-gray-800 p-6 rounded-lg shadow-lg flex items-center border border-gray-700 relative overflow-hidden">
+                            <div class="relative z-10">
+                                <p class="text-sm text-gray-400 font-medium uppercase">Belum Hadir</p>
+                                <p id="dash-alpha" class="text-3xl font-bold text-red-400 mt-1">...</p>
+                            </div>
+                            <i class="fas fa-user-times text-5xl text-red-900 absolute right-4 bottom-4 opacity-50"></i>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <div class="bg-gray-800 p-6 rounded-lg shadow-lg border border-gray-700">
+                            <h3 class="text-xl font-semibold mb-4 text-white flex items-center"><i class="fas fa-calendar-day text-blue-500 mr-2"></i> Jadwal Hari Ini</h3>
+                            <div id="dash-schedule" class="space-y-3"></div>
+                            <div class="mt-6 p-3 bg-gray-700/50 rounded border border-gray-600 text-center">
+                                <p class="text-xs text-gray-400">Jadwal Saat Ini</p>
+                                <p class="text-lg font-bold text-blue-400" id="dash-status">...</p>
+                            </div>
+                        </div>
+                        <div class="bg-gray-800 p-6 rounded-lg shadow-lg border border-gray-700 lg:col-span-2">
+                            <h3 class="text-xl font-semibold mb-4 text-white flex items-center"><i class="fas fa-history text-green-500 mr-2"></i> Aktivitas Terbaru</h3>
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-sm text-left text-gray-300">
+                                    <thead class="bg-gray-700 text-gray-200 uppercase text-xs"><tr><th class="p-3">Nama</th><th class="p-3">Kelas</th><th class="p-3 text-right">Waktu</th></tr></thead>
+                                    <tbody id="dash-recent" class="divide-y divide-gray-700"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="view-scan" class="view-section hidden lg:h-full flex flex-col">
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:flex-1 lg:min-h-0">
+                        
+                        <div class="lg:col-span-2 flex flex-col gap-4 lg:h-full">
+                            <div class="bg-gray-800 rounded-xl border border-gray-700 p-4 shadow-lg flex-1 flex flex-col min-h-0 relative group">
+                                <div class="flex justify-between items-center mb-2 px-1 shrink-0">
+                                    <h3 class="text-sm font-bold text-gray-400 flex items-center">
+                                        <i class="fas fa-camera mr-2"></i> Kamera Wajah
+                                    </h3>
+                                    <div class="flex items-center gap-2">
+                                        <span class="w-2 h-2 rounded-full bg-red-500 animate-pulse" id="cam-indicator"></span>
+                                        <span class="text-xs text-gray-500" id="cam-status-text">Nonaktif</span>
+                                    </div>
+                                </div>
+
+                                <div class="relative w-full flex-1 min-h-[300px] bg-black rounded-lg overflow-hidden border-2 border-gray-700 group-hover:border-blue-500/50 transition-colors">
+                                    <video id="qr-video" class="absolute inset-0 w-full h-full object-cover"></video> <div id="scan-line" class="hidden face-frame z-10"></div>
+                                    
+                                    <div id="cam-placeholder" class="absolute inset-0 z-20 flex flex-col items-center justify-center bg-gray-900 text-gray-500">
+                                        <div class="w-16 h-16 rounded-full bg-gray-800 flex items-center justify-center mb-3 shadow-inner">
+                                            <i class="fas fa-camera-slash text-2xl opacity-50"></i>
+                                        </div>
+                                        <p class="text-sm font-medium tracking-wide">Kamera Nonaktif</p>
+                                        <p class="text-[10px] text-gray-600 mt-1">Klik tombol aktifkan di bawah</p>
+                                    </div>
+                                </div>
+
+                                <div class="mt-4 grid grid-cols-2 gap-3 shrink-0">
+                                    <button onclick="startCamera()" class="py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold shadow-lg transition-colors flex items-center justify-center">
+                                        <i class="fas fa-power-off mr-2"></i> AKTIFKAN
+                                    </button>
+                                    <button onclick="stopCamera()" class="py-3 bg-gray-700 hover:bg-gray-600 text-white rounded-lg font-bold shadow-lg transition-colors flex items-center justify-center">
+                                        <i class="fas fa-stop mr-2"></i> MATIKAN
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div class="bg-gray-800 p-3 rounded-xl border border-gray-700 flex gap-2 shadow-lg shrink-0">
+                                <input type="text" id="manual-nis" placeholder="Input NIS Manual jika wajah gagal..." class="flex-1 bg-gray-900 border border-gray-600 text-white rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm">
+                                <button onclick="processScanManual(document.getElementById('manual-nis').value)" class="bg-green-600 hover:bg-green-700 text-white px-6 rounded-lg transition-colors">
+                                    <i class="fas fa-paper-plane"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="lg:col-span-1 bg-gray-800 rounded-xl border border-gray-700 p-0 flex flex-col lg:h-full min-h-[400px] shadow-lg overflow-hidden">
+                            <div class="bg-gray-700/50 p-4 border-b border-gray-600 shrink-0">
+                                <h3 class="text-white font-bold text-center">Status Identifikasi</h3>
+                            </div>
+                            <div id="scan-result-content" class="flex-1 flex flex-col items-center justify-center p-6 text-center bg-gradient-to-b from-gray-800 to-gray-900">
+                                <div class="relative mb-6">
+                                    <div class="absolute inset-0 bg-blue-500 blur-xl opacity-20 rounded-full animate-pulse"></div>
+                                    <div class="w-32 h-32 bg-gray-700 rounded-full flex items-center justify-center border-4 border-gray-600 transition-all duration-300 relative z-10" id="scan-icon-bg">
+                                        <i class="fas fa-user text-5xl text-gray-500" id="scan-icon"></i>
+                                    </div>
+                                </div>
+                                <h2 class="text-2xl font-bold text-white mb-2 leading-tight" id="scan-name">Menunggu...</h2>
+                                <p class="text-base text-blue-400 font-medium mb-6" id="scan-class">Posisikan Wajah</p>
+                                <div id="scan-msg" class="px-6 py-2 rounded-full bg-gray-700 border border-gray-600 text-gray-400 text-sm font-bold shadow-sm">
+                                    Sistem Siap
+                                </div>
+                            </div>
+                            <div class="p-3 bg-gray-700/30 border-t border-gray-600 text-center shrink-0">
+                                <p class="text-[10px] text-gray-500">Pastikan pencahayaan cukup terang</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="view-students" class="view-section hidden">
+                    <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                        <div class="lg:col-span-4 space-y-6">
+                            <div class="bg-gray-800 p-5 rounded-lg border border-gray-700 shadow-lg" id="card-student-form">
+                                <h3 class="text-lg font-bold text-white mb-4 border-b border-gray-700 pb-2" id="form-student-title">Tambah Siswa Baru</h3>
+                                <form id="form-student" class="space-y-4">
+                                    <input type="hidden" name="old_nis" id="std_old_nis">
+                                    <div><label class="block text-xs font-medium text-gray-400 mb-1">NIS</label><input type="text" name="nis" id="std_nis" class="w-full bg-gray-700 border-gray-600 text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none" placeholder="Contoh: 1001" required></div>
+                                    <div><label class="block text-xs font-medium text-gray-400 mb-1">Nama Lengkap</label><input type="text" name="name" id="std_name" class="w-full bg-gray-700 border-gray-600 text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none" placeholder="Contoh: Budi Santoso" required></div>
+                                    <div><label class="block text-xs font-medium text-gray-400 mb-1">Kelas</label><input type="text" name="class" id="std_class" class="w-full bg-gray-700 border-gray-600 text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none" placeholder="Contoh: X-A" required></div>
+                                    <div><label class="block text-xs font-medium text-gray-400 mb-1">No. WA Ortu (Opsional)</label><input type="text" name="phone" id="std_phone" class="w-full bg-gray-700 border-gray-600 text-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none" placeholder="Format: 08... atau 62..."></div>
+                                    <div class="pt-2 flex gap-2">
+                                        <button type="submit" id="btn-save-student" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg font-bold shadow transition-colors"><i class="fas fa-plus-circle mr-2"></i> Tambah Siswa</button>
+                                        <button type="button" id="btn-cancel-student" onclick="cancelEditStudent()" class="hidden bg-gray-600 hover:bg-gray-500 text-white py-2 px-4 rounded-lg font-bold shadow transition-colors">Batal</button>
+                                    </div>
+                                </form>
+                            </div>
+                            <div class="bg-gray-800 p-5 rounded-lg border border-gray-700 shadow-lg">
+                                <h3 class="text-lg font-bold text-white mb-2">Upload Siswa (CSV)</h3>
+                                <p class="text-xs text-gray-400 mb-4">Format: NIS,Nama,Kelas,NoHP (tanpa header).</p>
+                                <form id="form-upload" class="space-y-3">
+                                    <input type="file" name="csv_file" accept=".csv" class="block w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-gray-700 file:text-blue-400 hover:file:bg-gray-600 cursor-pointer border border-gray-600 rounded-lg"/>
+                                    <button type="submit" class="w-full bg-green-600 hover:bg-green-700 text-white py-2 rounded-lg font-bold shadow transition-colors"><i class="fas fa-file-upload mr-2"></i> Proses File CSV</button>
+                                </form>
+                            </div>
+                            <div class="bg-red-900/20 p-5 rounded-lg border border-red-800 shadow-lg">
+                                <h3 class="text-red-400 font-bold text-sm uppercase mb-3"><i class="fas fa-exclamation-triangle mr-2"></i> Zona Bahaya</h3>
+                                <button onclick="confirmDeleteAllStudents()" class="w-full bg-red-700 hover:bg-red-600 text-white py-2 rounded-lg font-bold shadow transition-colors"><i class="fas fa-trash-alt mr-2"></i> Hapus SEMUA Data Siswa</button>
+                                <p class="text-[10px] text-red-300 mt-2 text-center">Tindakan ini tidak dapat dibatalkan.</p>
+                            </div>
+                        </div>
+                        <div class="lg:col-span-8 space-y-4">
+                            <div class="flex flex-wrap gap-2 bg-gray-800 p-4 rounded-lg border border-gray-700">
+                                <select id="student-rows" onchange="loadStudents()" class="bg-gray-700 border border-gray-600 text-white rounded-lg px-3 py-2 text-sm focus:ring-blue-500"><option value="10">10 Baris</option><option value="50">50 Baris</option><option value="100">100 Baris</option><option value="2000">Semua</option></select>
+                                <select id="filter-class" onchange="loadStudents()" class="bg-gray-700 border border-gray-600 text-white rounded-lg px-3 py-2 text-sm focus:ring-blue-500"><option value="">Semua Kelas</option><option value="X">Kelas X</option><option value="XI">Kelas XI</option><option value="XII">Kelas XII</option></select>
+                                <select id="filter-subclass" onchange="loadStudents()" class="bg-gray-700 border border-gray-600 text-white rounded-lg px-3 py-2 text-sm focus:ring-blue-500"><option value="">Semua Subkelas</option></select>
+                                <input type="text" id="search-student" onkeyup="loadStudents()" placeholder="Cari Nama/NIS..." class="bg-gray-700 border border-gray-600 text-white rounded-lg px-3 py-2 text-sm flex-1 focus:ring-blue-500 focus:outline-none">
+                            </div>
+                            <div class="bg-gray-800 rounded-lg shadow-lg overflow-hidden border border-gray-700">
+                                <div class="overflow-x-auto">
+                                    <table class="w-full text-sm text-left text-gray-300">
+                                        <thead class="bg-gray-700 text-gray-200 uppercase text-xs"><tr><th class="p-4">NIS</th><th class="p-4">Nama Lengkap</th><th class="p-4">Kelas</th><th class="p-4">No. HP</th><th class="p-4 text-center">Aksi</th></tr></thead>
+                                        <tbody id="table-students" class="divide-y divide-gray-700"></tbody>
+                                    </table>
+                                </div>
+                                <div class="p-4 border-t border-gray-700 flex justify-center" id="pagination-students"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="view-attendance" class="view-section hidden space-y-4">
+                    
+                    <div class="bg-gray-800 p-4 rounded-lg border border-gray-700 flex flex-col gap-4">
+                        
+                        <div class="flex flex-wrap gap-2 items-center">
+                            <select id="att-rows" onchange="loadAttendance()" class="bg-gray-700 border border-gray-600 text-white rounded-lg px-3 py-2 text-sm focus:ring-blue-500 outline-none">
+                                <option value="10">10 Baris</option>
+                                <option value="50">50 Baris</option>
+                                <option value="100">100 Baris</option>
+                                <option value="2000">Semua</option>
+                            </select>
+                            
+                            <select id="att-class" onchange="loadAttendance()" class="bg-gray-700 border border-gray-600 text-white rounded-lg px-3 py-2 text-sm focus:ring-blue-500 outline-none">
+                                <option value="">Semua Kelas</option>
+                                <option value="X">Kelas X</option>
+                                <option value="XI">Kelas XI</option>
+                                <option value="XII">Kelas XII</option>
+                            </select>
+
+                            <select id="att-subclass" onchange="loadAttendance()" class="bg-gray-700 border border-gray-600 text-white rounded-lg px-3 py-2 text-sm focus:ring-blue-500 outline-none">
+                                <option value="">Semua Subkelas</option>
+                            </select>
+                            
+                            <select id="att-status" onchange="loadAttendance()" class="bg-gray-700 border border-gray-600 text-white rounded-lg px-3 py-2 text-sm focus:ring-blue-500 outline-none">
+                                <option value="">Semua Status</option>
+                            </select>
+
+                            <div class="flex items-center gap-2 bg-gray-700 border border-gray-600 rounded-lg px-3 py-2">
+                                <span class="text-xs text-gray-400 whitespace-nowrap">Dari:</span>
+                                <input type="date" id="att-start" class="bg-transparent border-none text-white text-sm focus:ring-0 p-0 outline-none h-5 w-[110px]">
+                            </div>
+
+                            <div class="flex items-center gap-2 bg-gray-700 border border-gray-600 rounded-lg px-3 py-2">
+                                <span class="text-xs text-gray-400 whitespace-nowrap">Sampai:</span>
+                                <input type="date" id="att-end" class="bg-transparent border-none text-white text-sm focus:ring-0 p-0 outline-none h-5 w-[110px]">
+                            </div>
+
+                            <button onclick="loadAttendance()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-lg">
+                                Terapkan Filter
+                            </button>
+
+                             <input type="text" id="search-attendance" onkeyup="loadAttendance()" placeholder="Cari Nama/NIS..." class="bg-gray-700 border border-gray-600 text-white rounded-lg px-3 py-2 text-sm flex-1 focus:ring-blue-500 focus:outline-none min-w-[150px]">
+                        </div>
+
+                        <div class="flex gap-2 justify-start pt-3 border-t border-gray-700">
+                             <button onclick="confirmDeleteAllAttendance()" class="bg-red-800 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow transition-colors admin-only flex items-center">
+                                <i class="fas fa-trash-alt mr-2"></i> Hapus Log
+                             </button>
+                             <a href="api.php?action=export_attendance" target="_blank" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow transition-colors flex items-center">
+                                <i class="fas fa-file-excel mr-2"></i> Unduh Excel
+                             </a>
+                        </div>
+                    </div>
+
+                    <div class="bg-gray-800 rounded-lg shadow-lg overflow-hidden border border-gray-700">
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-sm text-left text-gray-300">
+                                <thead class="bg-gray-700 text-gray-200 uppercase text-xs"><tr><th class="p-4">Waktu</th><th class="p-4">NIS</th><th class="p-4">Nama</th><th class="p-4">Kelas</th><th class="p-4">Status</th><th class="p-4 text-center">Aksi</th></tr></thead>
+                                <tbody id="table-attendance" class="divide-y divide-gray-700"></tbody>
+                            </table>
+                        </div>
+                        <div class="p-4 border-t border-gray-700 flex justify-center" id="pagination-attendance"></div>
+                    </div>
+                </div>
+
+                <div id="view-schedules" class="view-section hidden">
+                    <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                        <div class="lg:col-span-4 space-y-6">
+                            <div class="bg-gray-800 p-5 rounded-lg border border-gray-700 shadow-lg" id="card-schedule-form">
+                                <h3 class="text-lg font-bold text-white mb-4 border-b border-gray-700 pb-2" id="form-schedule-title">Tambah Jadwal</h3>
+                                <form id="form-schedule" class="space-y-4">
+                                    <input type="hidden" name="id" id="sch_id">
+                                    <div><label class="block text-xs font-medium text-gray-400 mb-1">Nama Jadwal</label><input type="text" name="name" id="sch_name" class="w-full bg-gray-700 border-gray-600 text-white rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500" required placeholder="Misal: Masuk Pagi"></div>
+                                    <div>
+                                        <label class="block text-xs font-medium text-gray-400 mb-2">Pilih Hari</label>
+                                        <div class="grid grid-cols-2 gap-2 text-sm text-gray-300 bg-gray-700 p-3 rounded-lg border border-gray-600">
+                                            <label class="flex items-center cursor-pointer"><input type="checkbox" name="day[]" value="1" class="mr-2 rounded text-blue-600 focus:ring-blue-500"> Senin</label>
+                                            <label class="flex items-center cursor-pointer"><input type="checkbox" name="day[]" value="2" class="mr-2 rounded text-blue-600 focus:ring-blue-500"> Selasa</label>
+                                            <label class="flex items-center cursor-pointer"><input type="checkbox" name="day[]" value="3" class="mr-2 rounded text-blue-600 focus:ring-blue-500"> Rabu</label>
+                                            <label class="flex items-center cursor-pointer"><input type="checkbox" name="day[]" value="4" class="mr-2 rounded text-blue-600 focus:ring-blue-500"> Kamis</label>
+                                            <label class="flex items-center cursor-pointer"><input type="checkbox" name="day[]" value="5" class="mr-2 rounded text-blue-600 focus:ring-blue-500"> Jumat</label>
+                                            <label class="flex items-center cursor-pointer"><input type="checkbox" name="day[]" value="6" class="mr-2 rounded text-blue-600 focus:ring-blue-500"> Sabtu</label>
+                                            <label class="flex items-center cursor-pointer"><input type="checkbox" name="day[]" value="7" class="mr-2 rounded text-blue-600 focus:ring-blue-500"> Minggu</label>
+                                        </div>
+                                    </div>
+                                    <div class="flex gap-3">
+                                        <div class="flex-1"><label class="block text-xs font-medium text-gray-400 mb-1">Mulai</label><input type="time" name="start" id="sch_start" class="w-full bg-gray-700 border-gray-600 text-white rounded-lg px-3 py-2" required></div>
+                                        <div class="flex-1"><label class="block text-xs font-medium text-gray-400 mb-1">Selesai</label><input type="time" name="end" id="sch_end" class="w-full bg-gray-700 border-gray-600 text-white rounded-lg px-3 py-2" required></div>
+                                    </div>
+                                    <div><label class="block text-xs font-medium text-gray-400 mb-1">Status Label</label><input type="text" name="status" id="sch_status" class="w-full bg-gray-700 border-gray-600 text-white rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500" required placeholder="Contoh: Hadir"></div>
+                                    <div class="flex items-center gap-2 mt-2 bg-gray-700 p-2 rounded border border-gray-600">
+                                        <input type="checkbox" name="is_active" id="sch_active" class="w-4 h-4 text-blue-600 bg-gray-600 border-gray-500 rounded focus:ring-blue-500">
+                                        <label for="sch_active" class="text-sm text-gray-300 select-none cursor-pointer">Set Jadwal Aktif</label>
+                                    </div>
+                                    <div class="pt-2 flex gap-2">
+                                        <button type="submit" id="btn-save-schedule" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg font-bold shadow transition-colors"><i class="fas fa-plus-circle mr-2"></i> Simpan Jadwal</button>
+                                        <button type="button" id="btn-cancel-schedule" onclick="cancelEditSchedule()" class="hidden bg-gray-600 hover:bg-gray-500 text-white py-2 px-4 rounded-lg font-bold shadow transition-colors">Batal</button>
+                                    </div>
+                                </form>
+                            </div>
+                            <div class="bg-red-900/20 p-5 rounded-lg border border-red-800 shadow-lg admin-only">
+                                <h3 class="text-red-400 font-bold text-sm uppercase mb-3"><i class="fas fa-exclamation-triangle mr-2"></i> Zona Bahaya</h3>
+                                <button onclick="confirmDeleteAllSchedules()" class="w-full bg-red-700 hover:bg-red-600 text-white py-2 rounded-lg font-bold shadow transition-colors"><i class="fas fa-trash-alt mr-2"></i> Hapus SEMUA Jadwal</button>
+                            </div>
+                        </div>
+                        <div class="lg:col-span-8">
+                            <div class="bg-gray-800 rounded-lg shadow-lg overflow-hidden border border-gray-700">
+                                <table class="w-full text-sm text-left text-gray-300">
+                                    <thead class="bg-gray-700 text-gray-200 uppercase text-xs"><tr><th class="p-4">Hari</th><th class="p-4">Nama Jadwal</th><th class="p-4">Jam</th><th class="p-4">Status</th><th class="p-4">Aktif</th><th class="p-4 text-center">Aksi</th></tr></thead>
+                                    <tbody id="table-schedules" class="divide-y divide-gray-700"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="view-users" class="view-section hidden">
+                    <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                        <div class="lg:col-span-4 space-y-6">
+                            <div class="bg-gray-800 p-5 rounded-lg border border-gray-700 shadow-lg" id="card-user-form">
+                                <h3 class="text-lg font-bold text-white mb-4 border-b border-gray-700 pb-2" id="form-user-title">Tambah Pengguna</h3>
+                                <form id="form-user" class="space-y-4">
+                                    <input type="hidden" name="id" id="usr_id">
+                                    
+                                    <div><label class="block text-xs font-medium text-gray-400 mb-1">Nama Panggilan</label><input type="text" name="name" id="usr_realname" class="w-full bg-gray-700 border-gray-600 text-white rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500" required placeholder="Nama Panggilan"></div>
+
+                                    <div><label class="block text-xs font-medium text-gray-400 mb-1">Username</label><input type="text" name="username" id="usr_name" class="w-full bg-gray-700 border-gray-600 text-white rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500" required placeholder="Username login"></div>
+                                    
+                                    <div>
+                                        <label class="block text-xs font-medium text-gray-400 mb-1">Password</label>
+                                        <div class="relative">
+                                            <input type="password" name="password" id="usr_password" class="w-full bg-gray-700 border-gray-600 text-white rounded-lg pl-3 pr-10 py-2 focus:outline-none focus:border-blue-500" placeholder="Isi untuk set/ganti password">
+                                            <button type="button" onclick="togglePassword('usr_password', this)" class="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-200 focus:outline-none">
+                                                <i class="fas fa-eye"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label class="block text-xs font-medium text-gray-400 mb-1">Role</label>
+                                        <select name="role" id="usr_role" class="w-full bg-gray-700 border-gray-600 text-white rounded-lg px-3 py-2 focus:outline-none focus:border-blue-500">
+                                            <option value="admin">Admin</option>
+                                            <option value="guru">Guru</option>
+                                            <option value="user">User (Scanner Only)</option>
+                                        </select>
+                                    </div>
+                                    <div class="pt-2 flex gap-2">
+                                        <button type="submit" id="btn-save-user" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg font-bold shadow transition-colors"><i class="fas fa-plus-circle mr-2"></i> Simpan User</button>
+                                        <button type="button" id="btn-cancel-user" onclick="cancelEditUser()" class="hidden bg-gray-600 hover:bg-gray-500 text-white py-2 px-4 rounded-lg font-bold shadow transition-colors">Batal</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                        <div class="lg:col-span-8">
+                            <div class="bg-gray-800 rounded-lg shadow-lg overflow-hidden border border-gray-700">
+                                <table class="w-full text-sm text-left text-gray-300">
+                                    <thead class="bg-gray-700 text-gray-200 uppercase text-xs"><tr><th class="p-4">Nama</th><th class="p-4">Username</th><th class="p-4">Role</th><th class="p-4 text-center">Aksi</th></tr></thead>
+                                    <tbody id="table-users" class="divide-y divide-gray-700"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="view-wa" class="view-section hidden">
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 h-full">
+                        <div class="lg:col-span-1">
+                            <div class="bg-gray-800 rounded-lg shadow-lg border border-gray-700 p-6 h-full flex flex-col">
+                                <h3 class="text-lg font-bold text-white mb-4 flex items-center"><i class="fab fa-whatsapp text-green-500 mr-2"></i> Koneksi WhatsApp</h3>
+                                <div class="flex-1 flex flex-col items-center justify-center bg-gray-900 rounded-lg border border-gray-600 p-4 mb-2 min-h-[250px] relative">
+                                    <div id="wa-qr-container" class="flex items-center justify-center w-full h-full">
+                                        <div class="w-48 h-48 bg-white flex items-center justify-center rounded">
+                                            <p class="text-black text-xs font-mono">QR Code Area</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="text-center w-full mb-4">
+                                    <span class="text-xs text-gray-400">Status:</span>
+                                    <span id="wa-status" class="text-yellow-500 font-bold text-sm ml-1 animate-pulse">Menunggu...</span>
+                                </div>
+                                <div class="grid grid-cols-2 gap-3 mt-auto">
+                                    <button id="btn-wa-init" onclick="initWhatsApp()" class="bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg font-bold text-sm transition-colors"><i class="fas fa-bolt mr-1"></i> Inisialisasi</button>
+                                    <button onclick="checkWAStatus()" class="bg-gray-700 hover:bg-gray-600 text-white py-2 rounded-lg font-bold text-sm transition-colors"><i class="fas fa-sync-alt mr-1"></i> Cek Status</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="lg:col-span-2">
+                            <div class="bg-gray-800 rounded-lg shadow-lg border border-gray-700 p-6 h-full">
+                                <h3 class="text-lg font-bold text-blue-400 mb-4"><i class="fas fa-info-circle mr-2"></i> Petunjuk Penggunaan</h3>
+                                <ol class="list-decimal list-inside space-y-3 text-sm text-gray-300 leading-relaxed">
+                                    <li>Pastikan aplikasi <span class="text-white font-bold">Node.js Bot</span> sudah berjalan di server (Port 3000).</li>
+                                    <li>Klik tombol <span class="text-white font-bold">"Inisialisasi"</span> di panel kiri jika sesi belum dimulai.</li>
+                                    <li>Tunggu beberapa saat hingga <span class="text-white font-bold">QR Code</span> muncul di kotak putih.</li>
+                                    <li>Buka aplikasi <span class="text-white font-bold">WhatsApp</span> di ponsel Anda.</li>
+                                    <li>Ketuk menu <span class="text-white font-bold">titik tiga (⋮)</span> di pojok kanan atas (Android) atau Pengaturan (iOS).</li>
+                                    <li>Pilih menu <span class="text-white font-bold">"Perangkat tertaut"</span> (Linked Devices).</li>
+                                    <li>Ketuk tombol <span class="text-white font-bold">"Tautkan perangkat"</span>.</li>
+                                    <li>Arahkan kamera ponsel ke layar untuk memindai QR Code yang muncul.</li>
+                                    <li>Tunggu hingga status berubah menjadi <span class="text-green-400 font-bold">"Tersambung"</span>.</li>
+                                </ol>
+                                <div class="mt-6 p-4 bg-gray-900/50 rounded-lg border border-gray-600 text-xs text-gray-400">
+                                    <p class="font-bold mb-1 uppercase">Catatan Teknis:</p>
+                                    <p>Halaman ini hanya antarmuka (interface). Logika pengiriman pesan WA dilakukan oleh service Node.js terpisah.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <footer class="text-center text-gray-500 text-xs p-4 border-t border-gray-700 bg-gray-900 shrink-0 select-none cursor-pointer" title="???">
+                &copy; 2025 MAN 2 Surakarta. Sistem Presensi Digital.
+            </footer>
+        </main>
+    </div>
+
+    <div id="modal-detail" class="hidden fixed inset-0 bg-gray-900 bg-opacity-75 z-40 flex items-center justify-center p-4 backdrop-blur-sm">
+        <div class="bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl max-h-[80vh] flex flex-col border border-gray-700">
+            <div class="flex justify-between items-center p-5 border-b border-gray-700 shrink-0 bg-gray-800 rounded-t-lg">
+                <h3 class="text-xl font-bold text-white">Detail Presensi Siswa</h3>
+                <button onclick="document.getElementById('modal-detail').classList.add('hidden')" class="text-gray-400 hover:text-white text-2xl">&times;</button>
+            </div>
+            <div class="p-6 overflow-y-auto">
+                <div class="flex items-center gap-5 mb-6">
+                    <div class="w-16 h-16 bg-gray-700 rounded-full flex items-center justify-center text-3xl text-gray-400 border-2 border-gray-600"><i class="fas fa-user"></i></div>
+                    <div>
+                        <h2 class="text-2xl font-bold text-white" id="det-name">...</h2>
+                        <p class="text-blue-400 font-medium" id="det-class">...</p>
+                        <p class="text-xs text-gray-500" id="det-nis">...</p>
+                    </div>
+                </div>
+                <div class="grid grid-cols-3 gap-4 mb-6 text-center" id="det-stats"></div>
+                <div class="flex justify-between items-end border-b border-gray-700 mb-3 pb-2">
+                    <h4 class="text-sm font-bold text-gray-400">Riwayat Kehadiran</h4>
+                    <button onclick="downloadDetailHistory()" class="text-xs bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded transition-colors flex items-center gap-2 shadow-sm">
+                        <i class="fas fa-file-excel"></i> Unduh Excel
+                    </button>
+                </div>
+                <table class="w-full text-sm text-left text-gray-300">
+                    <thead class="bg-gray-700 uppercase text-xs font-bold text-gray-200"><tr><th class="p-3">Tanggal</th><th class="p-3">Waktu</th><th class="p-3">Status</th></tr></thead>
+                    <tbody id="det-history" class="divide-y divide-gray-700"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div id="modal-credits" class="hidden fixed inset-0 z-[9999] flex items-center justify-center bg-black transition-opacity duration-700 opacity-0">
+        <div class="text-center text-white p-8 max-w-lg relative animate-fade-in-up">
+            <button onclick="closeCredits()" class="absolute top-6 right-6 text-gray-500 hover:text-white transition-colors z-50">
+                <i class="fas fa-times text-2xl"></i>
+            </button>
+
+            <div class="space-y-8 animate-slide-up">
+                <div class="mb-6">
+                     <i class="fas fa-code text-6xl text-blue-500 animate-pulse"></i>
+                </div>
+
+                <h2 class="text-4xl font-black tracking-[0.3em] uppercase mb-2 text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-500">Credits</h2>
+                <div class="h-1 w-24 bg-blue-500 mx-auto rounded-full mb-8"></div>
+
+                <div class="transform transition hover:scale-105 duration-300">
+                    <p class="text-[10px] text-gray-400 uppercase tracking-widest mb-2">Architect & Developer</p>
+                    <h3 class="text-2xl font-bold text-white mb-1">Muhammad Yusuf Arifin</h3>
+                    <p class="text-xs text-blue-400 font-mono">[ Fullstack Engineer ]</p>
+                </div>
+
+                <div class="bg-gray-900/80 p-6 rounded-xl border border-gray-800 backdrop-blur-sm shadow-2xl mt-8">
+                    <i class="fas fa-quote-left text-gray-600 text-xl mb-2 block"></i>
+                    <p class="text-sm text-gray-300 italic leading-relaxed font-light">
+                        "Terima kasih telah menggunakan sistem ini. Kode ini ditulis dengan dedikasi untuk kemajuan teknologi dan efisiensi. Semoga bermanfaat."
+                    </p>
+                    <i class="fas fa-quote-right text-gray-600 text-xl mt-2 block text-right"></i>
+                </div>
+                
+                <p class="text-[10px] text-gray-600 mt-12 font-mono">v1.0.0 • 2025</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentUser = null; 
+        let videoStream = null; 
+        let scanLock = false;
+        let isProcessing = false; // Flag proses wajah
+        let currentDetailNis = null; 
+        const days = ['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'];
+
+        function showToast(msg, type='success') { const t = document.createElement('div'); t.className = `toast ${type==='success'?'toast-success':(type==='error'?'toast-error':'toast-warning')}`; t.innerHTML = `<i class="fas ${type==='success'?'fa-check-circle':(type==='error'?'fa-times-circle':'fa-exclamation-triangle')} text-xl mr-3"></i><span class="font-medium">${msg}</span>`; document.getElementById('toast-container').appendChild(t); setTimeout(()=>t.classList.add('show'),100); setTimeout(()=>{t.classList.remove('show'); setTimeout(()=>t.remove(),500)}, 3000); }
+
+        function togglePassword(inputId, btn) {
+            const input = document.getElementById(inputId);
+            const icon = btn.querySelector('i');
+            if (input.type === "password") {
+                input.type = "text";
+                icon.classList.remove('fa-eye');
+                icon.classList.add('fa-eye-slash');
+            } else {
+                input.type = "password";
+                icon.classList.remove('fa-eye-slash');
+                icon.classList.add('fa-eye');
+            }
+        }
+
+        window.onload = async () => {
+            try {
+                const res = await fetch('api.php?action=check_session').then(r=>r.json());
+                if(res.status !== 'success') { window.location.href = 'index.html'; return; }
+                currentUser = res.data;
+                
+                // Set Header Name
+                document.getElementById('header-name').innerText = currentUser.name || currentUser.username;
+
+                // Logic Role
+                if(currentUser.role === 'guru') {
+                    document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'none');
+                } else if (currentUser.role === 'user') {
+                    document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'none');
+                    document.querySelectorAll('.staff-only').forEach(el => el.style.display = 'none');
+                }
+                
+                const manualInput = document.getElementById('manual-nis');
+                if(manualInput) {
+                    manualInput.addEventListener('keypress', function(e) {
+                        if(e.key === 'Enter') {
+                            processScanManual(this.value);
+                        }
+                    });
+                }
+                
+                loadStatusOptions();
+
+                nav('dashboard'); 
+                updateTime(); 
+                setInterval(updateTime, 1000); 
+                generateSubclasses();
+
+                // Auto Refresh Dashboard
+                setInterval(() => {
+                    const dashboardView = document.getElementById('view-dashboard');
+                    if (!dashboardView.classList.contains('hidden')) {
+                        loadDashboard(); 
+                    }
+                }, 3000); 
+
+            } catch(e) { console.error(e); }
+        };
+
+        function logout() { 
+            fetch('api.php?action=logout').then(() => {
+                showToast('Logout Berhasil!', 'success');
+                setTimeout(() => {
+                    window.location.href = 'index.html';
+                }, 1500);
+            }); 
+        }
+        function toggleSidebar() { const sb = document.getElementById('sidebar'); const ov = document.getElementById('mobile-sidebar-overlay'); sb.classList.toggle('-translate-x-full'); if(sb.classList.contains('-translate-x-full')) ov.classList.add('hidden'); else ov.classList.remove('hidden'); }
+        function updateTime() { const now = new Date(); document.getElementById('clock-time').innerText = now.toLocaleTimeString('id-ID', {hour:'2-digit', minute:'2-digit', second:'2-digit'}).replace(/\./g, ':'); document.getElementById('clock-date').innerText = now.toLocaleDateString('id-ID', {weekday:'long', day:'numeric', month:'long', year:'numeric'}); }
+
+        function nav(page) {
+            document.querySelectorAll('.view-section').forEach(el => el.classList.add('hidden'));
+            document.querySelectorAll('.nav-link').forEach(el => { el.classList.remove('bg-gray-700', 'text-white'); el.classList.add('text-gray-300'); });
+            const target = document.getElementById(`view-${page}`); const link = document.getElementById(`menu-${page}`);
+            if(target) target.classList.remove('hidden'); if(link) { link.classList.add('bg-gray-700', 'text-white'); link.classList.remove('text-gray-300'); }
+            document.getElementById('page-title').innerText = (page === 'wa') ? 'API WhatsApp' : (page.charAt(0).toUpperCase() + page.slice(1));
+            if(page !== 'scan') stopCamera();
+            if(page === 'dashboard') loadDashboard(); if(page === 'students') loadStudents(); if(page === 'attendance') { loadAttendance(); } if(page === 'users') loadUsers(); if(page === 'schedules') loadSchedules(); if(page === 'wa') checkWAStatus();
+            if(window.innerWidth < 768) { document.getElementById('sidebar').classList.add('-translate-x-full'); document.getElementById('mobile-sidebar-overlay').classList.add('hidden'); }
+        }
+
+        // --- DASHBOARD ---
+        async function loadDashboard() {
+            const data = await fetch('api.php?action=dashboard_stats').then(r=>r.json());
+            if(data.status === 'success') {
+                const s = data.stats;
+                document.getElementById('dash-total').innerText = s.total; document.getElementById('dash-hadir').innerText = s.hadir; document.getElementById('dash-telat').innerText = s.telat; document.getElementById('dash-alpha').innerText = s.alpha; document.getElementById('dash-status').innerText = data.current_status;
+                const schedEl = document.getElementById('dash-schedule'); schedEl.innerHTML = ''; if(data.schedules.length === 0) schedEl.innerHTML = '<p class="text-gray-500 text-xs text-center italic">Tidak ada jadwal aktif.</p>'; else data.schedules.forEach(sch => { const active = data.current_status === sch.status_label ? 'border-blue-500 bg-gray-700' : 'border-transparent bg-gray-700/50'; schedEl.innerHTML += `<div class="p-3 rounded border-l-4 ${active} flex justify-between items-center"><div><p class="text-sm font-bold text-white">${sch.schedule_name}</p><p class="text-xs text-gray-400">${sch.status_label}</p></div><div class="text-xs font-mono text-blue-400 bg-gray-800 px-2 py-1 rounded">${sch.start_time.slice(0,5)} - ${sch.end_time.slice(0,5)}</div></div>`; });
+                const recEl = document.getElementById('dash-recent'); recEl.innerHTML = ''; data.recents.forEach(r => recEl.innerHTML += `<tr class="hover:bg-gray-700 transition-colors"><td class="p-3 font-medium text-white">${r.name}</td><td class="p-3 text-gray-400">${r.class}</td><td class="p-3 text-right font-mono text-blue-400">${r.created_at.split(' ')[1]}</td></tr>`);
+            }
+        }
+
+        // --- CAMERA & FACE RECOGNITION LOGIC ---
+        
+        async function startCamera() { 
+            try { 
+                // Gunakan 'user' untuk kamera depan/selfie
+                videoStream = await navigator.mediaDevices.getUserMedia({video:{facingMode:"environment"}}); 
+                const v = document.getElementById('qr-video'); 
+                v.srcObject = videoStream; 
+                v.setAttribute("playsinline", true); 
+                v.play(); 
+                
+                document.getElementById('scan-line').classList.remove('hidden'); 
+                document.getElementById('cam-placeholder').classList.add('hidden'); 
+                document.getElementById('cam-indicator').className = "w-2 h-2 rounded-full bg-green-500 animate-pulse"; 
+                document.getElementById('cam-status-text').innerText = "Mendeteksi Wajah..."; 
+                
+                // Mulai Loop Deteksi Wajah
+                requestAnimationFrame(tickFace); 
+                
+            } catch(e) { showToast("Kamera error / izin ditolak", "error"); } 
+        }
+
+        function stopCamera() { 
+            if(videoStream) { videoStream.getTracks().forEach(t=>t.stop()); videoStream=null; } 
+            const v = document.getElementById('qr-video'); 
+            v.srcObject = null; 
+            document.getElementById('scan-line').classList.add('hidden'); 
+            document.getElementById('cam-placeholder').classList.remove('hidden'); 
+            document.getElementById('cam-indicator').className = "w-2 h-2 rounded-full bg-red-500"; 
+            document.getElementById('cam-status-text').innerText = "Nonaktif"; 
+            isProcessing = false;
+        }
+
+        function tickFace() {
+            const v = document.getElementById('qr-video');
+            
+            // Cek kondisi stream & lock
+            if (v.readyState === v.HAVE_ENOUGH_DATA && videoStream && !scanLock && !isProcessing) {
+                
+                // Logic: Capture setiap 2 detik (interval sederhana)
+                if(!window.lastScanTime || (Date.now() - window.lastScanTime > 2000)) {
+                    captureAndSend(v);
+                    window.lastScanTime = Date.now();
+                }
+            }
+            
+            if(videoStream) requestAnimationFrame(tickFace);
+        }
+
+        async function captureAndSend(videoElement) {
+            isProcessing = true; // Kunci biar gak double request
+            
+            // 1. Buat Canvas temp
+            const canvas = document.createElement("canvas");
+            canvas.width = videoElement.videoWidth;
+            canvas.height = videoElement.videoHeight;
+            const ctx = canvas.getContext("2d");
+            
+            // Gambar frame video ke canvas
+            ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+            
+            // 2. Convert ke Base64 JPG
+            const base64Img = canvas.toDataURL('image/jpeg', 0.8);
+            
+            // Update UI status
+            document.getElementById('scan-msg').innerText = "Mengecek Wajah...";
+            document.getElementById('scan-msg').className = "px-4 py-2 rounded-full bg-blue-900 text-blue-200 text-sm inline-block font-bold animate-pulse";
+
+            try {
+                // 3. Kirim ke PHP
+                const res = await fetch('api.php?action=scan_face_process', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ image: base64Img })
+                });
+                
+                const d = await res.json();
+                
+                if(d.status === 'success') {
+                    // SUKSES DIKENALI
+                    document.getElementById('snd-success').play();
+                    handleScanSuccess(d);
+                    
+                    // Jeda 5 detik
+                    scanLock = true;
+                    setTimeout(() => { scanLock = false; resetScanUI(); }, 5000);
+                    
+                } else if (d.status === 'warning') {
+                    // SUDAH ABSEN
+                    document.getElementById('snd-warning').play();
+                    handleScanSuccess(d); 
+                    
+                    // Jeda 3 detik
+                    scanLock = true;
+                    setTimeout(() => { scanLock = false; resetScanUI(); }, 3000);
+                } else {
+                    // WAJAH TIDAK DIKENALI
+                    // Tidak perlu bunyi error terus menerus, cukup teks
+                    document.getElementById('scan-msg').innerText = "Wajah tidak dikenali...";
+                    document.getElementById('scan-msg').className = "px-4 py-2 rounded-full bg-gray-700 text-gray-400 text-sm inline-block font-medium";
+                }
+                
+            } catch (e) {
+                console.error(e);
+            } finally {
+                isProcessing = false; // Buka kunci
+            }
+        }
+
+        function handleScanSuccess(d) {
+            const s = d.data;
+            const nameEl = document.getElementById('scan-name');
+            const classEl = document.getElementById('scan-class');
+            const msgEl = document.getElementById('scan-msg');
+            const iconEl = document.getElementById('scan-icon');
+            const bgEl = document.getElementById('scan-icon-bg');
+
+            nameEl.innerText = s.name;
+            classEl.innerText = s.class;
+            
+            msgEl.innerText = d.message;
+            msgEl.className = d.status === 'success' 
+                ? "px-4 py-2 rounded-full bg-green-900 text-green-200 text-sm inline-block font-bold"
+                : "px-4 py-2 rounded-full bg-yellow-900 text-yellow-200 text-sm inline-block font-bold";
+                
+            showToast(d.message, d.status);
+            
+            // Efek Visual Icon
+            iconEl.className = d.status === 'success' ? "fas fa-check text-5xl text-green-400" : "fas fa-exclamation-triangle text-5xl text-yellow-400";
+            bgEl.className = d.status === 'success' 
+                ? "w-32 h-32 bg-green-900/20 rounded-full flex items-center justify-center mx-auto mb-6 border-4 border-green-500 transition-all transform scale-110"
+                : "w-32 h-32 bg-yellow-900/20 rounded-full flex items-center justify-center mx-auto mb-6 border-4 border-yellow-500 transition-all transform scale-110";
+        }
+
+        function resetScanUI() {
+            document.getElementById('scan-name').innerText = "Menunggu...";
+            document.getElementById('scan-class').innerText = "Posisikan Wajah";
+            document.getElementById('scan-msg').innerText = "Sistem Siap";
+            document.getElementById('scan-msg').className = "px-4 py-2 rounded-full bg-gray-700 text-gray-400 text-sm inline-block font-medium";
+            
+            document.getElementById('scan-icon').className = "fas fa-user text-5xl text-gray-500";
+            document.getElementById('scan-icon-bg').className = "w-32 h-32 bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-6 border-4 border-gray-600";
+        }
+        
+        // Manual Input NIS (Backup)
+        async function processScanManual(nis) { 
+            if(!nis) return; 
+            
+            // Gunakan endpoint lama untuk manual input (karena bukan image)
+            // Tapi kita arahkan ke logic yang sama di backend
+            const res = await fetch('api.php?action=scan_process', {
+                method:'POST', 
+                body:JSON.stringify({nis:nis, method:'Manual'})
+            }); 
+            
+            const d = await res.json(); 
+            
+            if(d.status === 'success' || d.status === 'warning') {
+               handleScanSuccess(d);
+               document.getElementById('manual-nis').value = '';
+               setTimeout(resetScanUI, 3000);
+            } else {
+                document.getElementById('snd-error').play();
+                showToast(d.message, 'error');
+            }
+        }
+
+        // --- STUDENTS ---
+        function generateSubclasses() { 
+            const targets = ['filter-subclass', 'att-subclass'];
+            targets.forEach(id => {
+                const s = document.getElementById(id);
+                if(s) {
+                    s.innerHTML='<option value="">Semua Subkelas</option>'; 
+                    ['X','XI','XII'].forEach(l => { 
+                        const p=l==='X'?'E':'F'; 
+                        for(let i=1;i<=12;i++) s.innerHTML+=`<option value="${l}/${p}-${i}">${l}/${p}-${i}</option>`; 
+                    }); 
+                }
+            });
+        }
+
+        async function loadStudents(p=1) { const c = document.getElementById('filter-class').value, s = document.getElementById('filter-subclass').value, q = document.getElementById('search-student').value; const rows = document.getElementById('student-rows').value; const res = await fetch(`api.php?action=get_students&page=${p}&rows=${rows}&class=${encodeURIComponent(c)}&subclass=${encodeURIComponent(s)}&search=${q}`); const d = await res.json(); const tb = document.getElementById('table-students'); tb.innerHTML=''; if(d.rows.length === 0) tb.innerHTML = '<tr><td colspan="5" class="p-4 text-center text-gray-500">Tidak ada data siswa.</td></tr>'; else d.rows.forEach(r => tb.innerHTML += `<tr class="hover:bg-gray-700 border-b border-gray-700 transition-colors"><td class="p-4">${r.nis}</td><td class="p-4 font-medium text-white">${r.name}</td><td class="p-4"><span class="bg-gray-700 px-2 py-1 rounded text-xs">${r.class}</span></td><td class="p-4 text-gray-400">${r.phone || '-'}</td><td class="p-4 text-center space-x-2"><button onclick="editStudent('${r.nis}','${r.name.replace(/'/g,"`")}','${r.class}','${r.phone}')" class="text-yellow-400 hover:text-yellow-300 transition-colors text-lg"><i class="fas fa-pen-to-square"></i></button><button onclick="delStudent('${r.nis}')" class="text-red-400 hover:text-red-300 transition-colors admin-only text-lg"><i class="fas fa-trash-alt"></i></button></td></tr>`); renderPage('pagination-students', d.pages, p, 'loadStudents'); }
+        
+        function editStudent(n,nm,c,p) { document.getElementById('std_old_nis').value=n; document.getElementById('std_nis').value=n; document.getElementById('std_name').value=nm; document.getElementById('std_class').value=c; document.getElementById('std_phone').value=p; document.getElementById('form-student-title').innerText = "Edit Data Siswa"; document.getElementById('btn-save-student').innerText = "Simpan Perubahan"; document.getElementById('btn-save-student').className = "flex-1 bg-yellow-600 hover:bg-yellow-700 text-white py-2 rounded-lg font-bold shadow transition-colors"; document.getElementById('btn-cancel-student').classList.remove('hidden'); document.getElementById('card-student-form').scrollIntoView({ behavior: 'smooth' }); }
+        function cancelEditStudent() { document.getElementById('form-student').reset(); document.getElementById('std_old_nis').value = ''; document.getElementById('form-student-title').innerText = "Tambah Siswa Baru"; document.getElementById('btn-save-student').innerText = "Tambah Siswa"; document.getElementById('btn-save-student').className = "flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg font-bold shadow transition-colors"; document.getElementById('btn-cancel-student').classList.add('hidden'); }
+        document.getElementById('form-student').onsubmit = async (e) => { e.preventDefault(); await fetch('api.php?action=save_student', {method:'POST', body:new FormData(e.target)}); showToast('Data siswa disimpan'); cancelEditStudent(); loadStudents(); };
+        document.getElementById('form-upload').onsubmit = async (e) => { e.preventDefault(); const r = await fetch('api.php?action=upload_csv', {method:'POST', body:new FormData(e.target)}); const d=await r.json(); showToast(d.message, d.status==='success'?'success':'error'); loadStudents(); };
+        async function delStudent(n) { if(confirm('Hapus siswa ini?')) { const f=new FormData(); f.append('nis',n); await fetch('api.php?action=delete_student', {method:'POST', body:f}); showToast('Siswa dihapus'); loadStudents(); } }
+        async function confirmDeleteAllStudents() { if(confirm('PERINGATAN: SEMUA DATA SISWA AKAN DIHAPUS!\nLanjutkan?')) { await fetch('api.php?action=delete_all_students'); showToast('Semua data dihapus'); loadStudents(); } }
+
+        // --- ATTENDANCE ---
+        async function loadAttendance(p=1) { 
+            const s=document.getElementById('att-start').value;
+            const e=document.getElementById('att-end').value;
+            const st=document.getElementById('att-status').value; 
+            const rows = document.getElementById('att-rows').value; 
+            const cls = document.getElementById('att-class').value;
+            const sub = document.getElementById('att-subclass').value;
+            const q = document.getElementById('search-attendance').value;
+
+            const res = await fetch(`api.php?action=get_attendance&page=${p}&rows=${rows}&start=${s}&end=${e}&status=${st}&class=${encodeURIComponent(cls)}&subclass=${encodeURIComponent(sub)}&search=${q}`); 
+            const d = await res.json(); 
+            const tb = document.getElementById('table-attendance'); 
+            tb.innerHTML=''; 
+            
+            if(d.rows.length === 0) tb.innerHTML = '<tr><td colspan="6" class="p-4 text-center text-gray-500">Tidak ada data absensi.</td></tr>'; 
+            else d.rows.forEach(r => { 
+                let c = r.status==='Hadir'?'text-green-400 font-bold':(r.status.includes('Terlambat')?'text-yellow-400 font-bold':'text-red-400'); 
+                tb.innerHTML += `<tr class="hover:bg-gray-700 border-b border-gray-700 transition-colors"><td class="p-4 font-mono text-blue-400">${r.created_at}</td><td class="p-4 text-gray-400">${r.nis}</td><td class="p-4 font-medium text-white">${r.name}</td><td class="p-4"><span class="bg-gray-700 px-2 py-1 rounded text-xs">${r.class}</span></td><td class="p-4 ${c}">${r.status}</td><td class="p-4 text-center space-x-2"><button onclick="detailStudent('${r.nis}')" class="bg-blue-600 hover:bg-blue-700 text-white text-xs px-3 py-1 rounded transition-colors">Detail</button><button onclick="delAtt(${r.id})" class="text-red-400 hover:text-red-300 transition-colors text-lg"><i class="fas fa-trash-alt"></i></button></td></tr>`; 
+            }); 
+            renderPage('pagination-attendance', d.pages, p, 'loadAttendance'); 
+        }
+
+        async function delAtt(id) { if(confirm('Hapus log ini?')) { const f=new FormData(); f.append('id',id); await fetch('api.php?action=delete_attendance', {method:'POST', body:f}); showToast('Log dihapus'); loadAttendance(); } }
+        async function confirmDeleteAllAttendance() { if(confirm('HAPUS SEMUA LOG ABSENSI??')) { await fetch('api.php?action=delete_all_attendance'); showToast('Semua log dihapus'); loadAttendance(); } }
+        function downloadDetailHistory() { if(currentDetailNis) { window.location.href = `api.php?action=export_student_detail&nis=${currentDetailNis}`; } else { showToast('Terjadi kesalahan: NIS tidak ditemukan', 'error'); } }
+        async function detailStudent(n) { currentDetailNis = n; const d = await fetch(`api.php?action=get_student_detail&nis=${n}`).then(r=>r.json()); document.getElementById('det-name').innerText=d.student.name; document.getElementById('det-class').innerText=d.student.class; document.getElementById('det-nis').innerText=d.student.nis; const st=document.getElementById('det-stats'); st.innerHTML=''; for(const [k,v] of Object.entries(d.stats)) { st.innerHTML+=`<div class="bg-gray-700 p-3 rounded-lg border border-gray-600"><div class="text-2xl font-bold text-white">${v}</div><div class="text-xs text-gray-400 uppercase font-semibold mt-1">${k}</div></div>`; } const ht=document.getElementById('det-history'); ht.innerHTML=''; d.history.forEach(h => { const dateParts = h.date.split('-'); const dateIndo = `${dateParts[2]}-${dateParts[1]}-${dateParts[0]}`; ht.innerHTML += `<tr class="border-b border-gray-700 last:border-0"><td class="p-3 text-gray-300 font-mono">${dateIndo}</td><td class="p-3 font-mono text-blue-400">${h.created_at.split(' ')[1]}</td><td class="p-3 font-bold text-white">${h.status}</td></tr>`; }); document.getElementById('modal-detail').classList.remove('hidden'); }
+
+        async function loadStatusOptions() {
+            try {
+                const res = await fetch('api.php?action=get_status_options');
+                const json = await res.json();
+                if(json.status === 'success') {
+                    const select = document.getElementById('att-status');
+                    select.innerHTML = '<option value="">Semua Status</option>';
+                    json.data.forEach(status => {
+                        const opt = document.createElement('option');
+                        opt.value = status;
+                        opt.innerText = status;
+                        select.appendChild(opt);
+                    });
+                }
+            } catch(e) { console.error("Gagal memuat opsi status:", e); }
+        }
+
+        // --- SCHEDULES & USERS & WA (No Change from Original) ---
+        async function loadSchedules() { const d = await fetch('api.php?action=get_all_schedules').then(r=>r.json()); const tb = document.getElementById('table-schedules'); tb.innerHTML=''; if(d.data.length === 0) tb.innerHTML = '<tr><td colspan="6" class="p-4 text-center text-gray-500">Belum ada jadwal.</td></tr>'; else d.data.forEach(s => { const active = s.is_active == 1 ? '<span class="bg-green-900 text-green-200 text-xs px-2 py-1 rounded-full">Aktif</span>' : '<span class="bg-red-900 text-red-200 text-xs px-2 py-1 rounded-full">Nonaktif</span>'; tb.innerHTML += `<tr class="hover:bg-gray-700 border-b border-gray-700 transition-colors"><td class="p-4 font-medium">${days[s.day_of_week % 7]}</td><td class="p-4 text-white font-bold">${s.schedule_name}</td><td class="p-4 font-mono text-blue-400">${s.start_time.slice(0,5)} - ${s.end_time.slice(0,5)}</td><td class="p-4">${s.status_label}</td><td class="p-4">${active}</td><td class="p-4 text-center space-x-2"><button onclick="editSchedule(${s.id}, '${s.schedule_name}', ${s.day_of_week}, '${s.start_time}', '${s.end_time}', '${s.status_label}', ${s.is_active})" class="text-yellow-400 hover:text-yellow-300 text-lg"><i class="fas fa-pen-to-square"></i></button><button onclick="delSchedule(${s.id})" class="text-red-400 hover:text-red-300 text-lg"><i class="fas fa-trash-alt"></i></button></td></tr>`; }); }
+        function editSchedule(id, name, day, start, end, status, active) { document.getElementById('sch_id').value = id; document.getElementById('sch_name').value = name; document.querySelectorAll('input[name="day[]"]').forEach(cb => cb.checked = (cb.value == day)); document.getElementById('sch_start').value = start; document.getElementById('sch_end').value = end; document.getElementById('sch_status').value = status; document.getElementById('sch_active').checked = active == 1; document.getElementById('form-schedule-title').innerText = "Edit Jadwal"; document.getElementById('btn-save-schedule').innerText = "Simpan Perubahan"; document.getElementById('btn-save-schedule').className = "flex-1 bg-yellow-600 hover:bg-yellow-700 text-white py-2 rounded-lg font-bold shadow transition-colors"; document.getElementById('btn-cancel-schedule').classList.remove('hidden'); document.getElementById('card-schedule-form').scrollIntoView({ behavior: 'smooth' }); }
+        function cancelEditSchedule() { document.getElementById('form-schedule').reset(); document.getElementById('sch_id').value = ''; document.querySelectorAll('input[name="day[]"]').forEach(cb => cb.checked = false); document.getElementById('form-schedule-title').innerText = "Tambah Jadwal"; document.getElementById('btn-save-schedule').innerText = "Simpan Jadwal"; document.getElementById('btn-save-schedule').className = "flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg font-bold shadow transition-colors"; document.getElementById('btn-cancel-schedule').classList.add('hidden'); }
+        document.getElementById('form-schedule').onsubmit = async (e) => { e.preventDefault(); await fetch('api.php?action=save_schedule', {method:'POST', body:new FormData(e.target)}); showToast('Jadwal disimpan'); cancelEditSchedule(); loadSchedules(); };
+        async function delSchedule(id) { if(confirm('Hapus jadwal ini?')) { const f=new FormData(); f.append('id',id); await fetch('api.php?action=delete_schedule', {method:'POST', body:f}); showToast('Jadwal dihapus'); loadSchedules(); } }
+        async function confirmDeleteAllSchedules() { if(confirm('HAPUS SEMUA JADWAL??')) { await fetch('api.php?action=delete_all_schedules'); showToast('Semua jadwal dihapus'); loadSchedules(); } }
+
+        async function loadUsers() { const d = await fetch('api.php?action=get_users').then(r=>r.json()); const tb = document.getElementById('table-users'); tb.innerHTML=''; d.data.forEach(u => tb.innerHTML += `<tr class="hover:bg-gray-700 border-b border-gray-700 transition-colors"><td class="p-4 text-white font-medium">${u.name || '-'}</td><td class="p-4 text-gray-300">${u.username}</td><td class="p-4"><span class="bg-blue-900 text-blue-200 text-xs px-2 py-1 rounded font-bold uppercase">${u.role}</span></td><td class="p-4 text-center space-x-2"><button onclick="editUser('${u.id}','${u.username}','${u.name || ''}','${u.role}')" class="text-yellow-400 hover:text-yellow-300 text-lg"><i class="fas fa-pen-to-square"></i></button><button onclick="delUser('${u.id}')" class="text-red-400 hover:text-red-300 text-lg"><i class="fas fa-trash-alt"></i></button></td></tr>`); }
+        function editUser(i,u,n,r) { document.getElementById('usr_id').value=i; document.getElementById('usr_name').value=u; document.getElementById('usr_realname').value=n; document.getElementById('usr_role').value=r; document.getElementById('usr_password').value=''; document.getElementById('form-user-title').innerText = "Edit Pengguna"; document.getElementById('btn-save-user').innerText = "Simpan Perubahan"; document.getElementById('btn-save-user').className = "flex-1 bg-yellow-600 hover:bg-yellow-700 text-white py-2 rounded-lg font-bold shadow transition-colors"; document.getElementById('btn-cancel-user').classList.remove('hidden'); document.getElementById('card-user-form').scrollIntoView({ behavior: 'smooth' }); }
+        function cancelEditUser() { document.getElementById('form-user').reset(); document.getElementById('usr_id').value=''; document.getElementById('form-user-title').innerText = "Tambah Pengguna"; document.getElementById('btn-save-user').innerText = "Simpan User"; document.getElementById('btn-save-user').className = "flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg font-bold shadow transition-colors"; document.getElementById('btn-cancel-user').classList.add('hidden'); }
+        document.getElementById('form-user').onsubmit = async (e) => { e.preventDefault(); await fetch('api.php?action=save_user', {method:'POST', body:new FormData(e.target)}); showToast('User disimpan'); cancelEditUser(); loadUsers(); };
+        async function delUser(i) { if(confirm('Hapus?')) { const f=new FormData(); f.append('id',i); await fetch('api.php?action=delete_user', {method:'POST', body:f}); showToast('User dihapus'); loadUsers(); } }
+
+        async function checkWAStatus() { 
+            const st = document.getElementById('wa-status'); 
+            const container = document.getElementById('wa-qr-container');
+            const btn = document.getElementById('btn-wa-init');
+            st.innerText = "Mengecek..."; 
+            try { 
+                const res = await fetch('http://localhost:3000/'); 
+                const data = await res.json();
+                if(data.authenticated) {
+                    st.innerText = "Tersambung (Siap)"; 
+                    st.className = "text-green-400 font-bold text-sm ml-1 animate-none"; 
+                    container.innerHTML = '<div class="flex flex-col items-center p-4 text-green-500"><i class="fas fa-check-circle text-6xl mb-3"></i><p class="font-bold">Siap Digunakan</p></div>';
+                    btn.innerHTML = '<i class="fas fa-unlink mr-1"></i> Putuskan';
+                    btn.className = "bg-red-600 hover:bg-red-700 text-white py-2 rounded-lg font-bold text-sm transition-colors";
+                    btn.setAttribute('onclick', 'logoutWhatsApp()');
+                } else {
+                    st.innerText = "Menunggu Scan"; 
+                    st.className = "text-yellow-500 font-bold text-sm ml-1 animate-pulse"; 
+                    btn.innerHTML = '<i class="fas fa-bolt mr-1"></i> Inisialisasi';
+                    btn.className = "bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg font-bold text-sm transition-colors";
+                    btn.setAttribute('onclick', 'initWhatsApp()');
+                }
+            } catch(e) { 
+                st.innerText = "Terputus"; 
+                st.className = "text-red-500 font-bold text-sm ml-1 animate-none"; 
+            } 
+        }
+
+        async function logoutWhatsApp() {
+            if(!confirm("Putuskan koneksi WhatsApp?")) return;
+            try {
+                await fetch('http://localhost:3000/logout', {method: 'POST'});
+                showToast('Koneksi diputus', 'success');
+                document.getElementById('wa-qr-container').innerHTML = '<div class="flex flex-col items-center justify-center h-full text-gray-400 text-xs text-center"><p>QR Code Area</p></div>';
+                setTimeout(checkWAStatus, 1000);
+            } catch(e) { showToast('Gagal memutus koneksi', 'error'); }
+        }
+
+        async function initWhatsApp() {
+            const container = document.getElementById('wa-qr-container');
+            container.innerHTML = '<div class="flex flex-col items-center justify-center h-full text-blue-400 animate-pulse"><i class="fas fa-spinner fa-spin text-3xl mb-2"></i><p class="text-xs">Memuat QR...</p></div>';
+            try {
+                const res = await fetch('http://localhost:3000/qrcode');
+                const data = await res.json();
+                if (res.ok && data.qrCode) {
+                    container.innerHTML = `<img src="${data.qrCode}" class="w-full h-full object-contain bg-white p-2 rounded" alt="Scan QR WhatsApp">`;
+                    showToast('Silakan scan QR Code', 'success');
+                } else {
+                    if(data.error && data.error.includes('already authenticated')) {
+                        checkWAStatus(); 
+                        showToast('WhatsApp sudah terhubung!', 'success');
+                    } else {
+                        container.innerHTML = '<div class="flex flex-col items-center justify-center h-full text-gray-400 text-xs text-center"><p>QR belum tersedia.<br>Cek terminal server.</p></div>';
+                        showToast(data.error || 'Gagal memuat QR', 'warning');
+                    }
+                }
+            } catch (e) {
+                console.error(e);
+                container.innerHTML = '<div class="flex flex-col items-center justify-center h-full text-red-400 text-xs text-center"><p>Gagal koneksi ke Server WA</p></div>';
+                showToast('Gagal menghubungi server WA', 'error');
+            }
+        }
+
+        function renderPage(id, total, cur, fn) { const el = document.getElementById(id); if(total<=1) { el.innerHTML=''; return; } let h = `<div class="flex gap-1 items-center"><span class="text-xs text-gray-500 mr-3">Halaman ${cur} dari ${total}</span>`; if(cur>1) h+=`<button onclick="${fn}(${cur-1})" class="px-3 py-1 bg-gray-700 text-white rounded hover:bg-gray-600 transition-colors"><i class="fas fa-chevron-left"></i></button>`; if(cur<total) h+=`<button onclick="${fn}(${cur+1})" class="px-3 py-1 bg-gray-700 text-white rounded hover:bg-gray-600 transition-colors"><i class="fas fa-chevron-right"></i></button>`; el.innerHTML = h + `</div>`; }
+    
+        // Easter Egg
+        let footerTapCount = 0;
+        let footerTapTimer = null;
+        document.addEventListener("DOMContentLoaded", () => {
+            const footer = document.querySelector('footer');
+            if(footer) {
+                footer.addEventListener('click', (e) => {
+                    e.preventDefault(); 
+                    footerTapCount++;
+                    clearTimeout(footerTapTimer);
+                    footerTapTimer = setTimeout(() => { footerTapCount = 0; }, 500);
+                    if (footerTapCount === 5) { openCredits(); footerTapCount = 0; }
+                });
+            }
+        });
+
+        function openCredits() {
+            const modal = document.getElementById('modal-credits');
+            modal.classList.remove('hidden');
+            setTimeout(() => { modal.classList.remove('opacity-0'); }, 10);
+        }
+
+        function closeCredits() {
+            const modal = document.getElementById('modal-credits');
+            modal.classList.add('opacity-0');
+            setTimeout(() => { modal.classList.add('hidden'); }, 700);
+        }
+    </script>
+</body>
+</html>

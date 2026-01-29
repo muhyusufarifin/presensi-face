@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Presensi MAN 2 Surakarta</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    <style>
+        body { font-family: 'Poppins', sans-serif; background-color: #0f172a; }
+        .login-card { background-color: #1e293b; border: 1px solid #334155; }
+        
+        /* Toast Animation (Disamakan dengan presensi.html) */
+        #toast-container { position: fixed; top: 1.5rem; right: 1.5rem; z-index: 2000; display: flex; flex-direction: column; gap: 0.75rem; }
+        .toast { display: flex; align-items: center; padding: 1rem; border-radius: 0.5rem; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); opacity: 0; transform: translateX(100%); transition: all 0.5s cubic-bezier(0.68, -0.55, 0.27, 1.55); }
+        .toast.show { opacity: 1; transform: translateX(0); }
+        .toast-success { background-color: #1f2937; color: #d1d5db; border-left: 4px solid #10b981; }
+        .toast-error { background-color: #1f2937; color: #d1d5db; border-left: 4px solid #ef4444; }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen px-4">
+
+    <div id="toast-container"></div>
+
+    <div class="w-full max-w-md p-8 space-y-6 login-card rounded-xl shadow-2xl">
+        <div class="text-center">
+            <img src="https://man2ska.sch.id/wp-content/uploads/elementor/thumbs/LOGO-MAN2-p1qslg9q8f4i4ny1inanu0a0eejiavdlpseg9cscu8.png" alt="Logo" class="w-24 h-24 mx-auto mb-4 object-contain">
+            <h1 class="text-2xl font-bold text-white">Presensi Siswa</h1>
+            <p class="text-slate-400 text-sm mt-1">MAN 2 SURAKARTA</p>
+        </div>
+
+        <form id="loginForm" class="space-y-5">
+            <div>
+                <label class="block text-sm font-medium text-slate-300 mb-1">Username</label>
+                <div class="relative">
+                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <i class="fas fa-user text-slate-500"></i>
+                    </div>
+                    <input type="text" name="username" required 
+                        class="w-full pl-10 pr-4 py-3 bg-slate-900 border border-slate-700 text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none placeholder-slate-500 transition"
+                        placeholder="Masukkan username">
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-sm font-medium text-slate-300 mb-1">Password</label>
+                <div class="relative">
+                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <i class="fas fa-lock text-slate-500"></i>
+                    </div>
+                    <input type="password" name="password" id="loginPass" required 
+                        class="w-full pl-10 pr-12 py-3 bg-slate-900 border border-slate-700 text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none placeholder-slate-500 transition"
+                        placeholder="Masukkan password">
+                    <button type="button" onclick="togglePassword('loginPass', this)" class="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-500 hover:text-slate-300 transition-colors focus:outline-none">
+                        <i class="fas fa-eye"></i>
+                    </button>
+                </div>
+            </div>
+
+            <div id="error-alert" class="hidden bg-red-900/80 border border-red-700 text-red-100 px-4 py-3 rounded-lg flex items-center justify-center gap-3 shadow-lg transition-all duration-300">
+                <i class="fas fa-exclamation-triangle text-xl"></i>
+                <span class="font-medium text-sm">Username atau password salah.</span>
+            </div>
+
+            <button type="submit" id="btn-login"
+                class="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-lg shadow-lg transition duration-200 ease-in-out transform hover:scale-[1.02]">
+                Login
+            </button>
+        </form>
+
+        <p class="text-center text-xs text-slate-600 mt-6">© 2025 MAN 2 Surakarta. All rights reserved.</p>
+    </div>
+
+    <script>
+        // Toast Logic
+        function showToast(msg, type='success') { 
+            const t = document.createElement('div'); 
+            t.className = `toast ${type==='success'?'toast-success':'toast-error'}`; 
+            t.innerHTML = `<i class="fas ${type==='success'?'fa-check-circle':'fa-times-circle'} text-xl mr-3"></i><span class="font-medium">${msg}</span>`; 
+            document.getElementById('toast-container').appendChild(t); 
+            setTimeout(()=>t.classList.add('show'),100); 
+            setTimeout(()=>{t.classList.remove('show'); setTimeout(()=>t.remove(),500)}, 3000); 
+        }
+
+        // Toggle Password Visibility
+        function togglePassword(inputId, btn) {
+            const input = document.getElementById(inputId);
+            const icon = btn.querySelector('i');
+            if (input.type === "password") {
+                input.type = "text";
+                icon.classList.remove('fa-eye');
+                icon.classList.add('fa-eye-slash');
+            } else {
+                input.type = "password";
+                icon.classList.remove('fa-eye-slash');
+                icon.classList.add('fa-eye');
+            }
+        }
+
+        // Cek session saat load
+        fetch('api.php?action=check_session')
+            .then(r => r.json())
+            .then(res => {
+                if(res.status === 'success') window.location.href = 'presensi.html';
+            });
+
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const btn = document.getElementById('btn-login');
+            const errorAlert = document.getElementById('error-alert');
+            
+            // Reset State
+            errorAlert.classList.add('hidden');
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading...';
+            
+            const formData = new FormData(e.target);
+            try {
+                const res = await fetch('api.php?action=login', { method: 'POST', body: formData });
+                const data = await res.json();
+                
+                if(data.status === 'success') {
+                    // Tampilkan Toast Sukses
+                    showToast('Login Berhasil! Mengalihkan...', 'success');
+                    btn.innerHTML = '<i class="fas fa-check"></i> Sukses';
+                    btn.className = "w-full py-3 px-4 bg-green-600 text-white font-bold rounded-lg shadow-lg";
+                    
+                    // Delay sedikit agar toast terbaca
+                    setTimeout(() => {
+                        window.location.href = 'presensi.html';
+                    }, 1500);
+                } else {
+                    // Tampilkan Error Box Custom
+                    errorAlert.classList.remove('hidden');
+                    // Animasi shake sederhana
+                    errorAlert.classList.add('animate-pulse');
+                    setTimeout(() => errorAlert.classList.remove('animate-pulse'), 500);
+                    
+                    btn.innerHTML = 'Login';
+                }
+            } catch (err) {
+                alert("Koneksi gagal");
+                btn.innerHTML = 'Login';
+            }
+        });
+    </script>
+</body>
+</html>
